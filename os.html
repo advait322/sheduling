@@ -1,0 +1,429 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OS Process Scheduling Simulator</title>
+
+<style>
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    font-family: Arial, sans-serif;
+    background: #101827;
+    color: white;
+    padding: 25px;
+}
+
+.container {
+    max-width: 950px;
+    margin: auto;
+}
+
+h1 {
+    text-align: center;
+    color: #38bdf8;
+}
+
+.subtitle {
+    text-align: center;
+    color: #cbd5e1;
+    margin-bottom: 30px;
+}
+
+.card {
+    background: #1e293b;
+    padding: 20px;
+    border-radius: 12px;
+    margin-bottom: 20px;
+}
+
+.controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 15px;
+}
+
+input, select, button {
+    padding: 11px;
+    border-radius: 6px;
+    border: none;
+    font-size: 14px;
+}
+
+input, select {
+    background: #f8fafc;
+    color: #111827;
+    min-width: 100px;
+}
+
+button {
+    background: #0284c7;
+    color: white;
+    cursor: pointer;
+    font-weight: bold;
+}
+
+button:hover {
+    background: #0369a1;
+}
+
+.delete {
+    background: #dc2626;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 15px;
+    overflow-wrap: anywhere;
+}
+
+th, td {
+    border: 1px solid #475569;
+    padding: 10px;
+    text-align: center;
+}
+
+th {
+    background: #334155;
+}
+
+.gantt {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin-top: 20px;
+}
+
+.block {
+    background: #0e7490;
+    border: 2px solid #67e8f9;
+    border-radius: 6px;
+    padding: 15px 12px;
+    min-width: 75px;
+    text-align: center;
+}
+
+.time {
+    color: #bae6fd;
+    font-size: 12px;
+}
+
+.results {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px;
+}
+
+.result {
+    background: #334155;
+    padding: 15px;
+    border-radius: 8px;
+    flex: 1;
+    min-width: 180px;
+}
+
+.note {
+    color: #cbd5e1;
+    font-size: 13px;
+}
+
+@media(max-width:600px) {
+    body { padding: 12px; }
+    .card { padding: 12px; }
+    th, td { padding: 6px; font-size: 12px; }
+}
+</style>
+</head>
+
+<body>
+<div class="container">
+
+<h1>OS Process Scheduling Simulator</h1>
+<p class="subtitle">
+Operating System Mini Project | CPU Scheduling Algorithms
+</p>
+
+<div class="card">
+    <h2>Add Process</h2>
+
+    <div class="controls">
+        <input id="pid" placeholder="Process ID (P4)">
+        <input id="arrival" type="number" min="0"
+               placeholder="Arrival Time">
+        <input id="burst" type="number" min="1"
+               placeholder="Burst Time">
+        <button onclick="addProcess()">Add Process</button>
+    </div>
+
+    <p class="note">
+        Arrival Time must be 0 or greater.
+        Burst Time must be greater than 0.
+    </p>
+</div>
+
+<div class="card">
+    <h2>Process Table</h2>
+
+    <table>
+        <thead>
+        <tr>
+            <th>PID</th>
+            <th>Arrival</th>
+            <th>Burst</th>
+            <th>Action</th>
+        </tr>
+        </thead>
+        <tbody id="processTable"></tbody>
+    </table>
+</div>
+
+<div class="card">
+    <h2>Run CPU Scheduling</h2>
+
+    <div class="controls">
+        <select id="algorithm">
+            <option value="fcfs">FCFS</option>
+            <option value="sjf">SJF (Non-preemptive)</option>
+        </select>
+
+        <button onclick="runScheduler()">Run Simulation</button>
+        <button onclick="resetAll()" class="delete">Reset All</button>
+    </div>
+
+    <p id="status" class="note">
+        Add processes and run the simulation.
+    </p>
+</div>
+
+<div class="card">
+    <h2>Gantt Chart</h2>
+    <div id="gantt" class="gantt"></div>
+</div>
+
+<div class="card">
+    <h2>Scheduling Results</h2>
+
+    <div class="results">
+        <div class="result">
+            Average Waiting Time
+            <h2 id="avgWait">-</h2>
+        </div>
+
+        <div class="result">
+            Average Turnaround Time
+            <h2 id="avgTurn">-</h2>
+        </div>
+    </div>
+
+    <table>
+        <thead>
+        <tr>
+            <th>PID</th>
+            <th>Start</th>
+            <th>Completion</th>
+            <th>Waiting</th>
+            <th>Turnaround</th>
+        </tr>
+        </thead>
+        <tbody id="resultTable"></tbody>
+    </table>
+</div>
+
+</div>
+
+<script>
+let processes = [
+    { pid: "P1", arrival: 0, burst: 5 },
+    { pid: "P2", arrival: 1, burst: 3 },
+    { pid: "P3", arrival: 2, burst: 4 }
+];
+
+function addProcess() {
+    const pid = document.getElementById("pid").value.trim();
+    const arrivalValue = document.getElementById("arrival").value;
+    const burstValue = document.getElementById("burst").value;
+
+    const arrival = Number(arrivalValue);
+    const burst = Number(burstValue);
+
+    if (!pid || arrivalValue === "" || burstValue === "" ||
+        !Number.isFinite(arrival) || !Number.isFinite(burst) ||
+        arrival < 0 || burst <= 0 ||
+        !Number.isInteger(arrival) || !Number.isInteger(burst)) {
+        alert("Enter a unique PID, arrival time >= 0 and burst time > 0.");
+        return;
+    }
+
+    if (processes.some(p => p.pid.toLowerCase() === pid.toLowerCase())) {
+        alert("Process ID already exists!");
+        return;
+    }
+
+    processes.push({ pid, arrival, burst });
+
+    document.getElementById("pid").value = "";
+    document.getElementById("arrival").value = "";
+    document.getElementById("burst").value = "";
+
+    renderProcesses();
+    clearResults();
+}
+
+function renderProcesses() {
+    const table = document.getElementById("processTable");
+    table.innerHTML = "";
+
+    processes.forEach((p, index) => {
+        const row = document.createElement("tr");
+
+        [p.pid, p.arrival, p.burst].forEach(value => {
+            const cell = document.createElement("td");
+            cell.textContent = value;
+            row.appendChild(cell);
+        });
+
+        const actionCell = document.createElement("td");
+        const btn = document.createElement("button");
+        btn.textContent = "Delete";
+        btn.className = "delete";
+        btn.onclick = () => {
+            processes.splice(index, 1);
+            renderProcesses();
+            clearResults();
+        };
+
+        actionCell.appendChild(btn);
+        row.appendChild(actionCell);
+        table.appendChild(row);
+    });
+}
+
+function clearResults() {
+    document.getElementById("gantt").innerHTML = "";
+    document.getElementById("resultTable").innerHTML = "";
+    document.getElementById("avgWait").textContent = "-";
+    document.getElementById("avgTurn").textContent = "-";
+    document.getElementById("status").textContent =
+        "Process list changed. Run the simulation again.";
+}
+
+function runScheduler() {
+    if (processes.length === 0) {
+        alert("Please add at least one process.");
+        return;
+    }
+
+    const algorithm = document.getElementById("algorithm").value;
+    const pending = processes.map(p => ({ ...p }));
+    const completed = [];
+    let time = 0;
+
+    while (pending.length > 0) {
+        const ready = pending.filter(p => p.arrival <= time);
+
+        if (ready.length === 0) {
+            const nextArrival = Math.min(...pending.map(p => p.arrival));
+            completed.push({
+                pid: "IDLE",
+                start: time,
+                completion: nextArrival,
+                idle: true
+            });
+            time = nextArrival;
+            continue;
+        }
+
+        ready.sort((a, b) => {
+            if (algorithm === "sjf" && a.burst !== b.burst) {
+                return a.burst - b.burst;
+            }
+            return a.arrival - b.arrival ||
+                a.pid.localeCompare(b.pid, undefined, { numeric: true });
+        });
+
+        const p = ready[0];
+        const start = time;
+        time += p.burst;
+
+        completed.push({
+            ...p,
+            start,
+            completion: time,
+            turnaround: time - p.arrival,
+            waiting: start - p.arrival,
+            idle: false
+        });
+
+        pending.splice(pending.findIndex(x => x.pid === p.pid), 1);
+    }
+
+    displayResults(completed);
+}
+
+function displayResults(results) {
+    const gantt = document.getElementById("gantt");
+    const table = document.getElementById("resultTable");
+
+    gantt.innerHTML = "";
+    table.innerHTML = "";
+
+    let totalWait = 0;
+    let totalTurn = 0;
+    let count = 0;
+
+    results.forEach(p => {
+        const block = document.createElement("div");
+        block.className = "block";
+        block.innerHTML =
+            "<strong>" + p.pid + "</strong><br>" +
+            "<span class='time'>" + p.start +
+            " - " + p.completion + "</span>";
+        gantt.appendChild(block);
+
+        if (p.idle) return;
+
+        totalWait += p.waiting;
+        totalTurn += p.turnaround;
+        count++;
+
+        const row = document.createElement("tr");
+
+        [
+            p.pid, p.start, p.completion,
+            p.waiting, p.turnaround
+        ].forEach(value => {
+            const cell = document.createElement("td");
+            cell.textContent = value;
+            row.appendChild(cell);
+        });
+
+        table.appendChild(row);
+    });
+
+    document.getElementById("avgWait").textContent =
+        (totalWait / count).toFixed(2);
+
+    document.getElementById("avgTurn").textContent =
+        (totalTurn / count).toFixed(2);
+
+    document.getElementById("status").textContent =
+        "Simulation completed successfully!";
+}
+
+function resetAll() {
+    processes = [];
+    renderProcesses();
+    clearResults();
+}
+
+renderProcesses();
+</script>
+</body>
+</html>
